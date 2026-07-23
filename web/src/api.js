@@ -16,8 +16,11 @@ async function request(path, { method = 'GET', body, formData, headers = {} } = 
   const st = studentToken();
   const tt = teacherToken();
   const isStudentApi = path.startsWith('/api/student') || path.startsWith('/api/auth/student');
+  // Always send the stored Bearer token when present — cookies still work when
+  // available, but this keeps auth working across split deployments (Vercel ↔ Render)
+  // regardless of cross-site cookie / SameSite / proxy behavior.
   if (isStudentApi && st) h.Authorization = `Bearer ${st}`;
-  else if (!isStudentApi && CROSS_ORIGIN && tt) h.Authorization = `Bearer ${tt}`;
+  else if (!isStudentApi && tt) h.Authorization = `Bearer ${tt}`;
   const init = { method, headers: h, credentials: CROSS_ORIGIN ? 'include' : 'same-origin' };
   if (formData) init.body = formData;
   else if (body !== undefined) { h['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
