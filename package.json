@@ -1,0 +1,15 @@
+{
+  "name": "exampro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ExamPro — Secure, Fair, Transparent digital examination platform",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix web install",
+    "seed": "node server/src/db/seed.js",
+    "build": "npm --prefix web run build",
+    "start": "node server/src/index.js",
+    "dev:server": "node --watch server/src/index.js",
+    "dev:web": "npm --prefix web run dev"
+  },
+  "engines": { "node": ">=18" }
+}

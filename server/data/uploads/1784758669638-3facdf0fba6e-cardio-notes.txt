@@ -1,0 +1,20 @@
+Cardiology Quick Reference — Cardiac Conduction & Hemodynamics
+
+The sinoatrial (SA) node is located in the upper wall of the right atrium near the
+superior vena cava. It is the heart's primary pacemaker, firing at 60-100 bpm.
+The atrioventricular (AV) node sits in the interatrial septum near the tricuspid
+valve and delays the impulse ~0.1 s so the atria can finish contracting before
+ventricular systole. The bundle of His conducts the impulse into the ventricles,
+splitting into right and left bundle branches; Purkinje fibers distribute the
+signal through the ventricular myocardium, producing a synchronized contraction.
+
+Cardiac output (CO) = heart rate x stroke volume. Normal resting CO is ~5 L/min.
+Stroke volume depends on preload (Frank-Starling: increased end-diastolic volume
+stretches myocytes and raises contractile force), afterload (aortic pressure the
+ventricle must overcome), and contractility. Ejection fraction = SV / EDV; normal
+is 55-70%. An EF below 40% indicates systolic heart failure.
+
+On the ECG: the P wave = atrial depolarization, the QRS complex = ventricular
+depolarization, the T wave = ventricular repolarization. The PR interval
+(normally 0.12-0.20 s) reflects AV nodal delay. A widened QRS (>0.12 s) suggests
+bundle branch block or a ventricular origin rhythm.

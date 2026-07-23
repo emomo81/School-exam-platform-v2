@@ -1,0 +1,4 @@
+PHARMACOKINETICS BASICS
+Bioavailability: fraction of dose reaching systemic circulation; oral drugs undergo first-pass hepatic metabolism. Volume of distribution = dose / plasma concentration. Half-life depends on clearance and Vd.
+First-order elimination: constant fraction per unit time. Zero-order: constant amount (e.g., ethanol).
+Pharmacodynamics: agonist = affinity + efficacy; antagonist = affinity only. Competitive antagonists are surmountable (naloxone). Non-competitive are not (phenoxybenzamine). Narrow therapeutic index drugs need plasma monitoring (digoxin, lithium, phenytoin).

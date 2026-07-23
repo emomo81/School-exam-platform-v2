@@ -1,0 +1,1 @@
+2+2 equals 4. The sky is blue due to Rayleigh scattering. Water boils at 100 C at sea level. Testing validates code.
