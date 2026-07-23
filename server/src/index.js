@@ -23,6 +23,23 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
+// --------------- CORS (only when a split-origin frontend is configured) ---------------
+if (config.clientOrigin) {
+  const allowed = config.clientOrigin.split(',').map((s) => s.trim()).filter(Boolean);
+  app.use((req, res, next) => {
+    const o = req.headers.origin;
+    if (o && allowed.includes(o)) {
+      res.setHeader('Access-Control-Allow-Origin', o);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+}
+
 // ------------------------------- API ----------------------------------
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: nowIso() }));
 app.use('/api/auth', authRouter);

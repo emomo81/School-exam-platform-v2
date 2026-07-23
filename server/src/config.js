@@ -25,6 +25,12 @@ export const config = {
   databaseFile: process.env.DATABASE_FILE || path.join(SERVER_ROOT, 'data', 'exampro.db'),
   uploadsDir: path.join(SERVER_ROOT, 'data', 'uploads'),
   webDist: path.join(ROOT, 'web', 'dist'),
+  // Split deployment (Vercel frontend ↔ Render API): comma-separated allowed origins.
+  clientOrigin: process.env.CLIENT_ORIGIN || '',
+  // Cross-site cookies (frontend on a different origin than the API).
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
+  // Postgres mode (Supabase) — when set, the pg adapter replaces SQLite.
+  databaseUrl: process.env.DATABASE_URL || '',
 };
 
 fs.mkdirSync(path.dirname(config.databaseFile), { recursive: true });

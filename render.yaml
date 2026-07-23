@@ -1,0 +1,41 @@
+# Render Blueprint — ExamPro
+# Deploys the API + built frontend as ONE web service (fastest path to production;
+# the Node process serves web/dist and /api together, exactly like local dev).
+#
+# Usage: push this repo to GitHub/GitLab, then in Render:
+#   Dashboard → New → Blueprint → select repo → Render reads this file.
+# You'll be prompted only for the secrets marked `sync: false`.
+services:
+  - type: web
+    name: exampro
+    runtime: node
+    plan: starter                      # free plan works for demo loads; starter recommended
+    buildCommand: npm run setup && npm run build
+    startCommand: node server/src/index.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false                    # paste in the Render dashboard
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      # -- Split frontend (Vercel) only: set these; leave empty when serving the SPA from
+      #    this same service.
+      - key: CLIENT_ORIGIN
+        sync: false                    # e.g. https://exampro.vercel.app
+      - key: COOKIE_SECURE
+        sync: false                    # set "true" when CLIENT_ORIGIN is set
+      # -- Postgres/Supabase cutover (Track B): set DATABASE_URL to the Supabase
+      #    session-pooler connection string and unset DATABASE_FILE.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_FILE
+        value: /opt/render/project/src/server/data/exampro.db
+    disk:
+      name: exampro-data               # SQLite file + uploaded notes survive redeploys
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1

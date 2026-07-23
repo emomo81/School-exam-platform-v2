@@ -126,6 +126,7 @@ export default function Shell() {
 
   const doLogout = async () => {
     await api.post('/api/auth/teacher/logout').catch(() => {});
+    setTeacherToken('');
     setTeacher(null);
     navigate('/login');
   };

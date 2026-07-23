@@ -1,16 +1,27 @@
-// Tiny API client. Same-origin cookies carry sessions; a stored student token
-// is also sent as Bearer for robustness across dev ports.
+// Tiny API client. Works two ways:
+//  1. Same-origin (default) — API and SPA served together (local dev, all-in-one Render).
+//  2. Split-origin — set VITE_API_BASE (e.g. https://exampro-api.onrender.com) and the
+//     SPA calls the API cross-origin with cookies (credentials:'include'); stored
+//     Bearer tokens are sent as a fallback when third-party cookies are blocked.
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '');
+const CROSS_ORIGIN = !!API_BASE;
+
 export function studentToken() { return localStorage.getItem('ep_student_token') || ''; }
 export function setStudentToken(t) { t ? localStorage.setItem('ep_student_token', t) : localStorage.removeItem('ep_student_token'); }
+export function teacherToken() { return localStorage.getItem('ep_teacher_token') || ''; }
+export function setTeacherToken(t) { t ? localStorage.setItem('ep_teacher_token', t) : localStorage.removeItem('ep_teacher_token'); }
 
 async function request(path, { method = 'GET', body, formData, headers = {} } = {}) {
   const h = { ...headers };
-  const t = studentToken();
-  if (t) h.Authorization = `Bearer ${t}`;
-  const init = { method, headers: h, credentials: 'same-origin' };
+  const st = studentToken();
+  const tt = teacherToken();
+  const isStudentApi = path.startsWith('/api/student') || path.startsWith('/api/auth/student');
+  if (isStudentApi && st) h.Authorization = `Bearer ${st}`;
+  else if (!isStudentApi && CROSS_ORIGIN && tt) h.Authorization = `Bearer ${tt}`;
+  const init = { method, headers: h, credentials: CROSS_ORIGIN ? 'include' : 'same-origin' };
   if (formData) init.body = formData;
   else if (body !== undefined) { h['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
-  const res = await fetch(path, init);
+  const res = await fetch(API_BASE + path, init);
   const ct = res.headers.get('content-type') || '';
   let data = null;
   if (ct.includes('application/json')) data = await res.json().catch(() => null);
@@ -34,7 +45,7 @@ export const api = {
 
 // Server-Sent Events for live monitoring
 export function openMonitorStream(examId, onEvent) {
-  const es = new EventSource(`/api/exams/${examId}/monitor/stream`);
+  const es = new EventSource(`${API_BASE}/api/exams/${examId}/monitor/stream`, { withCredentials: CROSS_ORIGIN });
   es.onmessage = (e) => onEvent?.('message', e);
   es.addEventListener('attempt', (e) => onEvent?.('attempt', e));
   es.addEventListener('violation', (e) => onEvent?.('violation', e));

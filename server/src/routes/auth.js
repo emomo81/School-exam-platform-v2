@@ -5,8 +5,19 @@ import {
   createStudentSession, cookies, requireTeacher,
 } from '../lib/auth.js';
 import { audit, bad, examEnd, examStatus } from '../lib/util.js';
+import { config } from '../config.js';
 
 export const authRouter = Router();
+
+// Cross-site frontends (Vercel ↔ Render) need SameSite=None;Secure cookies.
+// The token is also returned in the body so the SPA can fall back to Bearer auth.
+const cookieOpts = (maxAge) => ({
+  httpOnly: true,
+  sameSite: config.cookieSecure ? 'none' : 'lax',
+  secure: config.cookieSecure,
+  maxAge,
+});
+const bearerOf = (req) => (req.headers.authorization || '').replace(/^Bearer /, '') || null;
 
 // ------------------------------- Teacher -----------------------------------
 authRouter.post('/teacher/login', (req, res) => {
@@ -16,9 +27,9 @@ authRouter.post('/teacher/login', (req, res) => {
     return bad(res, 'Invalid email or password', 401);
   }
   const token = createTeacherSession(t.id);
-  res.cookie(cookies.TEACHER_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: 72 * 3600e3 });
+  res.cookie(cookies.TEACHER_COOKIE, token, cookieOpts(72 * 3600e3));
   audit('teacher', t.id, 'auth.login', 'teacher', t.id);
-  res.json({ id: t.id, name: t.name, email: t.email, role: t.role });
+  res.json({ id: t.id, name: t.name, email: t.email, role: t.role, token });
 });
 
 // Local dev convenience: open teacher registration (co-teachers must register
@@ -34,13 +45,13 @@ authRouter.post('/teacher/register', (req, res) => {
     name.trim(), em, hashPassword(String(password)), 'teacher', nowIso()
   );
   const token = createTeacherSession(Number(info.lastInsertRowid));
-  res.cookie(cookies.TEACHER_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: 72 * 3600e3 });
+  res.cookie(cookies.TEACHER_COOKIE, token, cookieOpts(72 * 3600e3));
   audit('teacher', Number(info.lastInsertRowid), 'auth.registered', 'teacher', Number(info.lastInsertRowid));
-  res.status(201).json({ id: Number(info.lastInsertRowid), name: name.trim(), email: em, role: 'teacher' });
+  res.status(201).json({ id: Number(info.lastInsertRowid), name: name.trim(), email: em, role: 'teacher', token });
 });
 
 authRouter.post('/teacher/logout', (req, res) => {
-  const t = req.cookies?.[cookies.TEACHER_COOKIE];
+  const t = req.cookies?.[cookies.TEACHER_COOKIE] || bearerOf(req);
   if (t) destroyTeacherSession(t);
   res.clearCookie(cookies.TEACHER_COOKIE);
   res.json({ ok: true });
@@ -87,7 +98,7 @@ authRouter.post('/student/login', (req, res) => {
   const existing = q.get(`SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?`, exam.id, student.id);
 
   const token = createStudentSession(student.id, exam.id, existing?.id ?? null);
-  res.cookie(cookies.STUDENT_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: 12 * 3600e3 });
+  res.cookie(cookies.STUDENT_COOKIE, token, cookieOpts(12 * 3600e3));
   audit('student', student.id, 'auth.student_login', 'exam', exam.id);
 
   res.json({

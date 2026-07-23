@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api, setStudentToken } from '../api.js';
+import { api, setStudentToken, setTeacherToken } from '../api.js';
 import { Btn, Field, Icon, useToast } from '../ui.jsx';
 
 export default function Login({ onAuth }) {
@@ -17,6 +17,7 @@ export default function Login({ onAuth }) {
         const u = mode === 'teacher'
           ? await api.post('/api/auth/teacher/login', { email: f.email, password: f.password })
           : await api.post('/api/auth/teacher/register', { name: f.name, email: f.email, password: f.password });
+        if (u.token) setTeacherToken(u.token);
         onAuth(u);
         navigate('/');
       } else {
