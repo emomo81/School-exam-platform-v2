@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, createContext, useContext, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { api } from './api.js';
+import { api, setTeacherToken } from './api.js';
 import { useAuth } from './App.jsx';
 import { Icon, initials, Btn, Modal, useToast, timeAgo, fmtTime } from './ui.jsx';
 
