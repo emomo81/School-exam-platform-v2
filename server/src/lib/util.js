@@ -56,8 +56,8 @@ export const VIOLATION_TYPES = {
   devtools: 'Dev Tools Detected',
 };
 
-export function audit(actorType, actorId, action, entity, entityId, meta = {}) {
-  q.run(
+export async function audit(actorType, actorId, action, entity, entityId, meta = {}) {
+  await q.run(
     `INSERT INTO audit_logs (actor_type, actor_id, action, entity, entity_id, meta_json, created_at)
      VALUES (?,?,?,?,?,?,?)`,
     actorType, actorId ?? null, action, entity ?? null, entityId ?? null,

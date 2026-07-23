@@ -3,7 +3,7 @@ import cookieParser from 'cookie-parser';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
-import { q, nowIso } from './db/index.js';
+import { q, nowIso, initDb, USE_PG } from './db/index.js';
 import { authRouter } from './routes/auth.js';
 import { coursesRouter } from './routes/courses.js';
 import { examsRouter } from './routes/exams.js';
@@ -77,27 +77,30 @@ if (fs.existsSync(config.webDist)) {
 
 // --------------- Server-side timer enforcement (PRD 4.1) ---------------
 // pg_cron analogue: periodic sweep auto-submits attempts past the fixed end time.
-setInterval(() => {
+setInterval(async () => {
   try {
-    const due = q.all(
+    const due = await q.all(
       `SELECT id FROM attempts WHERE status = 'in_progress' AND ends_at <= ?`, nowIso()
     );
-    for (const a of due) finalizeAttempt(a.id, 'auto');
+    for (const a of due) await finalizeAttempt(a.id, 'auto');
   } catch (e) { console.error('[cron]', e.message); }
 }, 15000);
 
 // Presence sampling for the Live Overview chart (once per minute)
-setInterval(() => {
+setInterval(async () => {
   try {
-    const online = q.get(
+    const online = (await q.get(
       `SELECT COUNT(*) AS n FROM attempts WHERE status = 'in_progress'`
-    ).n;
-    q.run(`INSERT INTO presence_samples (ts, online_count) VALUES (?,?)`, nowIso(), online);
+    )).n;
+    await q.run(`INSERT INTO presence_samples (ts, online_count) VALUES (?,?)`, nowIso(), online);
   } catch (e) { console.error('[presence]', e.message); }
 }, 60000);
 
+await initDb();
+
 const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`ExamPro server → http://localhost:${config.port}`);
+  console.log(`Database: ${USE_PG ? 'Postgres (DATABASE_URL)' : `SQLite (${config.databaseFile})`}`);
   console.log(`Gemini AI: ${config.geminiApiKey ? `enabled (${config.geminiModel})` : 'NOT configured — set GEMINI_API_KEY in .env'}`);
 });
 server.on('error', (e) => {

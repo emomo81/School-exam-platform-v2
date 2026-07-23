@@ -10,19 +10,19 @@ import { finalizeAttempt } from './grading.js';
 //   zero_tolerance  → first violation terminates the exam
 // ---------------------------------------------------------------------------
 
-export function recordViolation(attempt, type, detail = '') {
+export async function recordViolation(attempt, type, detail = '') {
   if (!VIOLATION_TYPES[type]) return { error: 'Unknown violation type' };
   if (attempt.status !== 'in_progress') return { ignored: true, reason: 'attempt-not-active' };
 
-  const exam = q.get(`SELECT * FROM exams WHERE id = ?`, attempt.exam_id);
+  const exam = await q.get(`SELECT * FROM exams WHERE id = ?`, attempt.exam_id);
   const strike = (attempt.violations_count || 0) + 1;
   const now = nowIso();
 
-  q.run(
+  await q.run(
     `INSERT INTO violations (attempt_id, type, detail, strike, created_at) VALUES (?,?,?,?,?)`,
     attempt.id, type, String(detail).slice(0, 300), strike, now
   );
-  q.run(`UPDATE attempts SET violations_count = ?, last_seen = ? WHERE id = ?`, strike, now, attempt.id);
+  await q.run(`UPDATE attempts SET violations_count = ?, last_seen = ? WHERE id = ?`, strike, now, attempt.id);
 
   const label = VIOLATION_TYPES[type];
   let action = 'flag';
@@ -41,11 +41,11 @@ export function recordViolation(attempt, type, detail = '') {
     message = `Notice: ${label} was detected and recorded (strike ${strike}).`;
   }
 
-  audit('student', attempt.student_id, 'violation.' + type, 'attempt', attempt.id, { strike, policy: exam.severity_policy });
+  await audit('student', attempt.student_id, 'violation.' + type, 'attempt', attempt.id, { strike, policy: exam.severity_policy });
   ssePublish(attempt.exam_id, 'violation', {
     type: 'violation', attemptId: attempt.id, violationType: type, label, strike, action,
   });
 
-  if (terminated) finalizeAttempt(attempt.id, 'terminated');
+  if (terminated) await finalizeAttempt(attempt.id, 'terminated');
   return { strike, action, terminated, message, label };
 }

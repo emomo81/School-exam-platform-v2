@@ -9,12 +9,12 @@ export const analyticsRouter = Router();
 analyticsRouter.use(requireTeacher);
 
 // Full exam analytics (PRD 6.2): distribution, avg/median, pass/fail, per-question difficulty.
-analyticsRouter.get('/exams/:id/analytics', (req, res) => {
-  const acc = examAccess(req.teacher, req.params.id);
+analyticsRouter.get('/exams/:id/analytics', async (req, res) => {
+  const acc = await examAccess(req.teacher, req.params.id);
   if (!acc) return bad(res, 'Exam not found', 404);
-  const rows = examResultsRows(acc.exam.id);
+  const rows = await examResultsRows(acc.exam.id);
   const finished = rows.filter((r) => r.status !== 'in_progress');
-  const stats = examSummaryStats(acc.exam.id, acc.exam.pass_pct);
+  const stats = await examSummaryStats(acc.exam.id, acc.exam.pass_pct);
 
   // Score distribution in 10 percentage-point bins
   const bins = Array.from({ length: 10 }, () => 0);
@@ -23,13 +23,15 @@ analyticsRouter.get('/exams/:id/analytics', (req, res) => {
     bins[Math.min(9, Math.floor(p / 10))]++;
   }
 
-  const overrides = q.all(
+  const overrides = await q.all(
     `SELECT go.*, t.name AS teacher_name FROM grading_overrides go
      JOIN answers an ON an.id = go.answer_id
      JOIN attempts a ON a.id = an.attempt_id
      JOIN teachers t ON t.id = go.teacher_id
      WHERE a.exam_id = ? ORDER BY go.id DESC LIMIT 50`, acc.exam.id
   );
+  const roster = (await q.get(`SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?`, acc.exam.course_id)).n;
+  const questions = await examQuestionStats(acc.exam.id);
 
   res.json({
     exam: {
@@ -37,9 +39,9 @@ analyticsRouter.get('/exams/:id/analytics', (req, res) => {
       start_at: acc.exam.start_at, ends_at: examEnd(acc.exam), pass_pct: acc.exam.pass_pct,
       results_released: !!acc.exam.results_released,
     },
-    stats: { ...stats, roster: q.get(`SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?`, acc.exam.course_id).n },
+    stats: { ...stats, roster },
     histogram: bins,
-    questions: examQuestionStats(acc.exam.id),
+    questions,
     students: rows.map((r) => ({
       attempt_id: r.id, roll_no: r.roll_no, name: r.student_name, status: r.status,
       violations: r.vios, answered: r.answered_count,
