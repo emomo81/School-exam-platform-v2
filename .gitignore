@@ -6,8 +6,12 @@ node_modules/
 # builds
 web/.next/
 web/out/
+web/dist/
 api/dist/
 *.tsbuildinfo
+
+# runtime data (SQLite db + uploaded files) — seeded/created at runtime, never commit
+server/data/
 
 # env / secrets — never commit
 .env

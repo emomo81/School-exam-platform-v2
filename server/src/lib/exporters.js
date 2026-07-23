@@ -6,7 +6,7 @@ import { toCsv, examStatus, fmtPct, parseJson } from './util.js';
 // Data assembly
 // ---------------------------------------------------------------------------
 
-export function examResultsRows(examId) {
+export async function examResultsRows(examId) {
   return q.all(
     `SELECT a.*, st.roll_no, st.name AS student_name,
             (SELECT COUNT(*) FROM violations v WHERE v.attempt_id = a.id) AS vios
@@ -15,22 +15,22 @@ export function examResultsRows(examId) {
   );
 }
 
-export function examQuestionStats(examId) {
-  const exam = q.get(`SELECT * FROM exams WHERE id = ?`, examId);
+export async function examQuestionStats(examId) {
+  const exam = await q.get(`SELECT * FROM exams WHERE id = ?`, examId);
   let questions;
   if (exam.question_source === 'bank' && exam.bank_id) {
-    questions = q.all(
+    questions = await q.all(
       `SELECT DISTINCT q.* FROM questions q
        JOIN answers a ON a.question_id = q.id
        JOIN attempts at ON at.id = a.attempt_id
        WHERE at.exam_id = ?`, examId
     );
-    if (!questions.length) questions = q.all(`SELECT * FROM questions WHERE bank_id = ?`, exam.bank_id);
+    if (!questions.length) questions = await q.all(`SELECT * FROM questions WHERE bank_id = ?`, exam.bank_id);
   } else {
-    questions = q.all(`SELECT * FROM questions WHERE exam_id = ? ORDER BY id`, examId);
+    questions = await q.all(`SELECT * FROM questions WHERE exam_id = ? ORDER BY id`, examId);
   }
-  return questions.map((qu) => {
-    const agg = q.get(
+  return Promise.all(questions.map(async (qu) => {
+    const agg = await q.get(
       `SELECT COUNT(*) AS answered,
               SUM(CASE WHEN an.is_correct = 1 THEN 1 ELSE 0 END) AS correct,
               AVG(COALESCE(an.final_score, an.points_awarded, 0)) AS avg_pts
@@ -46,11 +46,11 @@ export function examQuestionStats(examId) {
       pct_correct: qu.type === 'mcq' && attempted ? Math.round(((agg.correct || 0) / attempted) * 1000) / 10 : null,
       avg_score: Math.round((agg.avg_pts || 0) * 10) / 10,
     };
-  });
+  }));
 }
 
-export function examSummaryStats(examId, passPct) {
-  const rows = examResultsRows(examId).filter((r) => r.status !== 'in_progress');
+export async function examSummaryStats(examId, passPct) {
+  const rows = (await examResultsRows(examId)).filter((r) => r.status !== 'in_progress');
   const pcts = rows.map((r) => fmtPct(r.score || 0, r.max_score || 0));
   const sorted = [...pcts].sort((a, b) => a - b);
   const avg = pcts.length ? pcts.reduce((s, x) => s + x, 0) / pcts.length : 0;
@@ -70,10 +70,10 @@ export function examSummaryStats(examId, passPct) {
 // CSV
 // ---------------------------------------------------------------------------
 
-export function examCsv(examId) {
-  const exam = q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
-  const rows = examResultsRows(examId);
-  const qStats = examQuestionStats(examId);
+export async function examCsv(examId) {
+  const exam = await q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
+  const rows = await examResultsRows(examId);
+  const qStats = await examQuestionStats(examId);
   const out = [
     [`ExamPro Results — ${exam.course_code}: ${exam.title}`],
     [`Course`, `${exam.course_code} — ${exam.course_title}`],
@@ -96,10 +96,10 @@ export function examCsv(examId) {
   return toCsv(out);
 }
 
-export function courseCsv(courseId) {
-  const course = q.get(`SELECT * FROM courses WHERE id = ?`, courseId);
-  const exams = q.all(`SELECT * FROM exams WHERE course_id = ? ORDER BY start_at`, courseId);
-  const roster = q.all(
+export async function courseCsv(courseId) {
+  const course = await q.get(`SELECT * FROM courses WHERE id = ?`, courseId);
+  const exams = await q.all(`SELECT * FROM exams WHERE course_id = ? ORDER BY start_at`, courseId);
+  const roster = await q.all(
     `SELECT st.* FROM enrollments en JOIN students st ON st.id = en.student_id WHERE en.course_id = ? ORDER BY st.roll_no`, courseId
   );
   const header = ['Roll No', 'Student', ...exams.map((e) => `${e.title} (%)`), 'Course Avg (%)'];
@@ -108,7 +108,7 @@ export function courseCsv(courseId) {
     const cells = [st.roll_no, st.name];
     let sum = 0, n = 0;
     for (const ex of exams) {
-      const a = q.get(`SELECT * FROM attempts WHERE exam_id = ? AND student_id = ? AND status != 'in_progress'`, ex.id, st.id);
+      const a = await q.get(`SELECT * FROM attempts WHERE exam_id = ? AND student_id = ? AND status != 'in_progress'`, ex.id, st.id);
       if (a && a.max_score) { const p = fmtPct(a.score || 0, a.max_score); cells.push(p); sum += p; n++; }
       else cells.push('—');
     }
@@ -152,11 +152,11 @@ function drawTable(doc, headers, rows, widths) {
   doc.y = y + 8;
 }
 
-export function streamExamPdf(examId, res) {
-  const exam = q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title, c.term FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
-  const stats = examSummaryStats(examId, exam.pass_pct);
-  const rows = examResultsRows(examId);
-  const qStats = examQuestionStats(examId);
+export async function streamExamPdf(examId, res) {
+  const exam = await q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title, c.term FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
+  const stats = await examSummaryStats(examId, exam.pass_pct);
+  const rows = await examResultsRows(examId);
+  const qStats = await examQuestionStats(examId);
 
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   res.setHeader('Content-Type', 'application/pdf');
@@ -198,10 +198,24 @@ export function streamExamPdf(examId, res) {
   doc.end();
 }
 
-export function streamStudentPdf(examId, studentId, res) {
-  const exam = q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title, c.term FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
-  const st = q.get(`SELECT * FROM students WHERE id = ?`, studentId);
-  const a = q.get(`SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?`, examId, studentId);
+export async function streamStudentPdf(examId, studentId, res) {
+  const exam = await q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title, c.term FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
+  const st = await q.get(`SELECT * FROM students WHERE id = ?`, studentId);
+  const a = await q.get(`SELECT * FROM attempts WHERE exam_id = ? AND student_id = ?`, examId, studentId);
+
+  let paperRows = [];
+  if (a) {
+    const order = parseJson(a.order_json, []);
+    paperRows = await Promise.all(order.map(async (o, i) => {
+      const qu = await q.get(`SELECT * FROM questions WHERE id = ?`, o.question_id);
+      const an = await q.get(`SELECT * FROM answers WHERE attempt_id = ? AND question_id = ?`, a.id, o.question_id);
+      const verdict = qu.type === 'mcq'
+        ? (an?.is_correct ? 'Correct' : 'Wrong')
+        : (an?.final_score != null ? `${an.final_score}/${qu.points}` : 'Pending review');
+      return [i + 1, qu.type.toUpperCase(), qu.text.slice(0, 90), qu.points, verdict];
+    }));
+  }
+
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="report-${st.roll_no}-exam-${examId}.pdf"`);
@@ -221,17 +235,8 @@ export function streamStudentPdf(examId, studentId, res) {
   doc.moveDown(0.8);
 
   if (a) {
-    const order = parseJson(a.order_json, []);
-    const rowsP = order.map((o, i) => {
-      const qu = q.get(`SELECT * FROM questions WHERE id = ?`, o.question_id);
-      const an = q.get(`SELECT * FROM answers WHERE attempt_id = ? AND question_id = ?`, a.id, o.question_id);
-      const verdict = qu.type === 'mcq'
-        ? (an?.is_correct ? 'Correct' : 'Wrong')
-        : (an?.final_score != null ? `${an.final_score}/${qu.points}` : 'Pending review');
-      return [i + 1, qu.type.toUpperCase(), qu.text.slice(0, 90), qu.points, verdict];
-    });
     doc.fontSize(12).text('Per-Question Outcome');
-    drawTable(doc, ['#', 'Type', 'Question', 'Pts', 'Outcome'], rowsP, [25, 45, 285, 35, 90]);
+    drawTable(doc, ['#', 'Type', 'Question', 'Pts', 'Outcome'], paperRows, [25, 45, 285, 35, 90]);
   }
   doc.end();
 }

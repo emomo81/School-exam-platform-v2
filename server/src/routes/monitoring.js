@@ -8,18 +8,18 @@ import { sseSubscribe } from '../lib/sse.js';
 export const monitoringRouter = Router();
 monitoringRouter.use(requireTeacher);
 
-function monitorSnapshot(examId) {
-  const exam = q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title
+async function monitorSnapshot(examId) {
+  const exam = await q.get(`SELECT e.*, c.code AS course_code, c.title AS course_title
                       FROM exams e JOIN courses c ON c.id = e.course_id WHERE e.id = ?`, examId);
   const totalQuestions = exam.question_source === 'bank' && exam.bank_id
-    ? Math.min(exam.question_count || Infinity, q.get(`SELECT COUNT(*) AS n FROM questions WHERE bank_id = ?`, exam.bank_id).n)
-    : q.get(`SELECT COUNT(*) AS n FROM questions WHERE exam_id = ?`, examId).n;
+    ? Math.min(exam.question_count || Infinity, (await q.get(`SELECT COUNT(*) AS n FROM questions WHERE bank_id = ?`, exam.bank_id)).n)
+    : (await q.get(`SELECT COUNT(*) AS n FROM questions WHERE exam_id = ?`, examId)).n;
 
   const roster = exam.use_roster_override
-    ? q.all(`SELECT st.* FROM exam_roster_overrides ero JOIN students st ON st.id = ero.student_id WHERE ero.exam_id = ?`, examId)
-    : q.all(`SELECT st.* FROM enrollments en JOIN students st ON st.id = en.student_id WHERE en.course_id = ?`, exam.course_id);
+    ? await q.all(`SELECT st.* FROM exam_roster_overrides ero JOIN students st ON st.id = ero.student_id WHERE ero.exam_id = ?`, examId)
+    : await q.all(`SELECT st.* FROM enrollments en JOIN students st ON st.id = en.student_id WHERE en.course_id = ?`, exam.course_id);
 
-  const attempts = q.all(
+  const attempts = await q.all(
     `SELECT a.*, st.roll_no, st.name FROM attempts a JOIN students st ON st.id = a.student_id WHERE a.exam_id = ?`, examId
   );
   const byStudent = new Map(attempts.map((a) => [a.student_id, a]));
@@ -41,11 +41,11 @@ function monitorSnapshot(examId) {
     };
   }).sort((x, y) => x.roll_no.localeCompare(y.roll_no));
 
-  const feed = q.all(
+  const feed = (await q.all(
     `SELECT v.*, st.roll_no, st.name, a.exam_id FROM violations v
      JOIN attempts a ON a.id = v.attempt_id JOIN students st ON st.id = a.student_id
      WHERE a.exam_id = ? ORDER BY v.id DESC LIMIT 30`, examId
-  ).map((v) => ({ ...v, label: VIOLATION_TYPES[v.type] || v.type }));
+  )).map((v) => ({ ...v, label: VIOLATION_TYPES[v.type] || v.type }));
 
   const counts = {
     roster: students.length,
@@ -66,30 +66,30 @@ function monitorSnapshot(examId) {
   };
 }
 
-monitoringRouter.get('/exams/:id/monitor', (req, res) => {
-  const acc = examAccess(req.teacher, req.params.id);
+monitoringRouter.get('/exams/:id/monitor', async (req, res) => {
+  const acc = await examAccess(req.teacher, req.params.id);
   if (!acc) return bad(res, 'Exam not found', 404);
-  res.json(monitorSnapshot(acc.exam.id));
+  res.json(await monitorSnapshot(acc.exam.id));
 });
 
 // Live stream (Supabase Realtime analogue) — client refetches the snapshot on any event.
-monitoringRouter.get('/exams/:id/monitor/stream', (req, res) => {
-  const acc = examAccess(req.teacher, req.params.id);
+monitoringRouter.get('/exams/:id/monitor/stream', async (req, res) => {
+  const acc = await examAccess(req.teacher, req.params.id);
   if (!acc) return bad(res, 'Exam not found', 404);
   sseSubscribe(acc.exam.id, res);
 });
 
 // Teacher drill-down into a single attempt (PRD 6.1). Teachers see full detail,
 // including correct answers (students do not).
-monitoringRouter.get('/attempts/:id', (req, res) => {
-  const acc = attemptAccess(req.teacher, req.params.id);
+monitoringRouter.get('/attempts/:id', async (req, res) => {
+  const acc = await attemptAccess(req.teacher, req.params.id);
   if (!acc) return bad(res, 'Attempt not found', 404);
   const a = acc.attempt;
-  const st = q.get(`SELECT * FROM students WHERE id = ?`, a.student_id);
+  const st = await q.get(`SELECT * FROM students WHERE id = ?`, a.student_id);
   const order = JSON.parse(a.order_json || '[]');
-  const items = order.map((o, i) => {
-    const qu = q.get(`SELECT * FROM questions WHERE id = ?`, o.question_id);
-    const an = q.get(`SELECT * FROM answers WHERE attempt_id = ? AND question_id = ?`, a.id, o.question_id);
+  const items = await Promise.all(order.map(async (o, i) => {
+    const qu = await q.get(`SELECT * FROM questions WHERE id = ?`, o.question_id);
+    const an = await q.get(`SELECT * FROM answers WHERE attempt_id = ? AND question_id = ?`, a.id, o.question_id);
     const options = qu.type === 'mcq' ? JSON.parse(qu.options_json || '[]') : null;
     return {
       position: i + 1, question_id: qu.id, type: qu.type, text: qu.text, points: qu.points,
@@ -102,10 +102,10 @@ monitoringRouter.get('/attempts/:id', (req, res) => {
       ai_score: an?.ai_score ?? null, ai_rationale: an?.ai_rationale ?? null,
       final_score: an?.final_score ?? null, grading_status: an?.grading_status ?? 'none',
     };
-  });
-  const violations = q.all(
+  }));
+  const violations = (await q.all(
     `SELECT * FROM violations WHERE attempt_id = ? ORDER BY id`, a.id
-  ).map((v) => ({ ...v, label: VIOLATION_TYPES[v.type] || v.type }));
+  )).map((v) => ({ ...v, label: VIOLATION_TYPES[v.type] || v.type }));
   res.json({
     attempt: a, student: { id: st.id, roll_no: st.roll_no, name: st.name },
     exam: { id: acc.exam.id, title: acc.exam.title },
