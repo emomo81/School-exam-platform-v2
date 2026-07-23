@@ -1,6 +1,0 @@
-CARDIOVASCULAR PHYSIOLOGY — LECTURE NOTES
-Cardiac cycle: atrial systole tops up ventricular filling with AV valves open. Ventricular systole: AV valves close (S1), isovolumetric contraction, then semilunar valves open for ejection. S2 marks semilunar closure and isovolumetric relaxation.
-Electrical conduction: SA node (right atrium) → AV node → Bundle of His → bundle branches → Purkinje fibers. ECG: P wave atrial depolarization, QRS ventricular depolarization, T wave ventricular repolarization.
-Hemodynamics: Cardiac output = heart rate × stroke volume. MAP ≈ DBP + 1/3 pulse pressure. Baroreceptors in carotid sinus and aortic arch modulate sympathetic/parasympathetic tone.
-Starling: increased end-diastolic volume increases stroke volume up to a limit. Preload relates to EDV; afterload to aortic pressure. S3 suggests volume overload.
-Pharmacology: beta-1 blockers reduce heart rate and contractility. ACE inhibitors reduce angiotensin II: less vasoconstriction (afterload down) and less aldosterone-driven Na+/water retention (preload down).
